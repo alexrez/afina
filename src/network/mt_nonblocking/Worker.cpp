@@ -61,8 +61,9 @@ void Worker::Stop() { isRunning = false; }
 
 // See Worker.h
 void Worker::Join() {
-    assert(_thread.joinable());
-    _thread.join();
+    if(_thread.joinable()){
+        _thread.join();
+    }
 }
 
 // See Worker.h
@@ -94,38 +95,61 @@ void Worker::OnRun() {
             Connection *pconn = static_cast<Connection *>(current_event.data.ptr);
             if ((current_event.events & EPOLLERR) || (current_event.events & EPOLLHUP)) {
                 _logger->debug("Got EPOLLERR or EPOLLHUP, value of returned events: {}", current_event.events);
-                pconn->OnError();
+                {
+                    std::unique_lock<std::mutex> locker(_mutex);
+                    pconn->OnError();
+                }
             } else if (current_event.events & EPOLLRDHUP) {
                 _logger->debug("Got EPOLLRDHUP, value of returned events: {}", current_event.events);
-                pconn->OnClose();
+                {
+                    std::unique_lock<std::mutex> locker(_mutex);
+                    pconn->OnClose();
+                }
             } else {
                 // Depends on what connection wants...
-                if (current_event.events & EPOLLIN) {
+                // if (current_event.events & EPOLLIN) {
+                if (pconn->_event.events & EPOLLIN) {
                     _logger->trace("Got EPOLLIN");
-                    pconn->DoRead();
+                    {
+                        std::unique_lock<std::mutex> locker(_mutex);
+                        pconn->DoRead();
+                    }
                 }
-                if (current_event.events & EPOLLOUT) {
+                // if (current_event.events & EPOLLOUT) {
+                if (pconn->_event.events & EPOLLOUT) {
                     _logger->trace("Got EPOLLOUT");
-                    pconn->DoWrite();
+                    {
+                        std::unique_lock<std::mutex> locker(_mutex);
+                        pconn->DoWrite();
+                    }
                 }
             }
 
             // Rearm connection
             if (pconn->isAlive()) {
-                pconn->_event.events |= EPOLLONESHOT;
-                int epoll_ctl_retval;
-                if ((epoll_ctl_retval = epoll_ctl(_epoll_fd, EPOLL_CTL_MOD, pconn->_socket, &pconn->_event))) {
-                    _logger->debug("epoll_ctl failed during connection rearm: error {}", epoll_ctl_retval);
-                    pconn->OnError();
-                    delete pconn;
+                {
+                    std::unique_lock<std::mutex> locker(_mutex);
+                    pconn->_event.events |= EPOLLONESHOT | EPOLLET;
+                    int epoll_ctl_retval;
+                    if ((epoll_ctl_retval = epoll_ctl(_epoll_fd, EPOLL_CTL_MOD, pconn->_socket, &pconn->_event))) {
+                        _logger->debug("epoll_ctl failed during connection rearm: error {}", epoll_ctl_retval);
+                        pconn->OnError();
+                        close(pconn->_socket);
+                        delete pconn;
+                    }
                 }
             }
             // Or delete closed one
             else {
-                if (epoll_ctl(_epoll_fd, EPOLL_CTL_DEL, pconn->_socket, &pconn->_event)) {
-                    std::cerr << "Failed to delete connection!" << std::endl;
+                {
+                    std::unique_lock<std::mutex> locker(_mutex);
+                    if (epoll_ctl(_epoll_fd, EPOLL_CTL_DEL, pconn->_socket, &pconn->_event)) {
+                        std::cerr << "Failed to delete connection!" << std::endl;
+                    }
+                    pconn->OnClose();
+                    close(pconn->_socket);
+                    delete pconn;
                 }
-                delete pconn;
             }
         }
         // TODO: Select timeout...

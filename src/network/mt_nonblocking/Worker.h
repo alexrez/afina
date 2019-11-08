@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <thread>
 
 namespace spdlog {
@@ -81,6 +82,8 @@ private:
 
     // EPOLL descriptor using for events processing
     int _epoll_fd;
+
+    std::mutex _mutex;
 };
 
 } // namespace MTnonblock
