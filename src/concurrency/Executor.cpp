@@ -14,7 +14,7 @@ void perform(Executor *executor) {
     while (running) {
         std::function<void()> task;
         {
-            std::unique_lock<std::mutex> lock(executor->mutex);
+            std::unique_lock<std::mutex> lock(executor->_mutex);
             if (executor->empty_condition.wait_for(lock, std::chrono::milliseconds(executor->_idle_time)) ==
                 std::cv_status::timeout) {
                 if (executor->threads.size() > executor->_low_watermark) {
@@ -24,10 +24,11 @@ void perform(Executor *executor) {
             }
             if (executor->tasks.empty() && executor->state == Executor::State::kRun) {
                 continue;
-            } else if (executor->tasks.empty() && executor->state == Executor::State::kStopping) {
-                executor->empty_condition.notify_all();
-                break;
-            } else if (executor->state == Executor::State::kStopped) {
+                // } else if (executor->tasks.empty() && executor->state == Executor::State::kStopping) {
+                //     // executor->empty_condition.notify_all();
+                //     break;
+            } else if ((executor->tasks.empty() && executor->state == Executor::State::kStopping) ||
+                       executor->state == Executor::State::kStopped) {
                 break;
             }
             task = executor->tasks.front();
@@ -37,14 +38,14 @@ void perform(Executor *executor) {
 
         task();
         {
-            std::unique_lock<std::mutex> lock(executor->mutex);
+            std::unique_lock<std::mutex> lock(executor->_mutex);
             executor->_free_threads++;
             running = (executor->state != Executor::State::kStopped);
         }
     }
 
     {
-        std::unique_lock<std::mutex> lock(executor->mutex);
+        std::unique_lock<std::mutex> lock(executor->_mutex);
         executor->_free_threads--;
         executor->_threads_to_stop++;
         if (kill) {
@@ -79,13 +80,13 @@ Executor::~Executor() {}
 
 void Executor::Stop(bool await) {
     {
-        std::unique_lock<std::mutex> locker(mutex);
+        std::unique_lock<std::mutex> locker(_mutex);
         state = Executor::State::kStopping;
     }
     empty_condition.notify_all();
 
     {
-        std::unique_lock<std::mutex> locker(mutex);
+        std::unique_lock<std::mutex> locker(_mutex);
         while (!tasks.empty()) {
             empty_condition.wait(locker);
         }
@@ -94,7 +95,7 @@ void Executor::Stop(bool await) {
     empty_condition.notify_all();
 
     {
-        std::unique_lock<std::mutex> locker(mutex);
+        std::unique_lock<std::mutex> locker(_mutex);
         while (_threads_to_stop != threads.size()) {
             join_condition.wait(locker);
         }
