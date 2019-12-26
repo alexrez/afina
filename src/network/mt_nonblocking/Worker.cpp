@@ -23,7 +23,6 @@ namespace MTnonblock {
 // See Worker.h
 Worker::Worker(std::shared_ptr<Afina::Storage> ps, std::shared_ptr<Afina::Logging::Service> pl)
     : _pStorage(ps), _pLogging(pl), isRunning(false), _epoll_fd(-1) {
-    // TODO: implementation here
 }
 
 // See Worker.h
