@@ -133,7 +133,7 @@ void ServerImpl::Stop() {
 void ServerImpl::Join() {
     {
         std::unique_lock<std::mutex> locker(_mutex);
-        while(_cur_acceptors != 0){
+        while (_cur_acceptors != 0) {
             _cv_join.wait(locker);
         }
 
@@ -236,7 +236,7 @@ void ServerImpl::OnRun() {
     {
         std::unique_lock<std::mutex> locker(_mutex);
         _cur_acceptors--;
-        if(_cur_acceptors == 0){
+        if (_cur_acceptors == 0) {
             _cv_join.notify_all();
         }
     }

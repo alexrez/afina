@@ -4,6 +4,7 @@
 #include <cstring>
 #include <deque>
 #include <memory>
+#include <mutex>
 #include <string>
 
 #include <sys/epoll.h>
@@ -25,7 +26,12 @@ public:
         std::memset(&_event, 0, sizeof(struct epoll_event));
         _event.data.ptr = this;
     }
-    ~Connection() { OnError(); }
+    ~Connection() {
+        _command_to_execute.reset();
+        _argument_for_command.resize(0);
+        _parser.Reset();
+        _answers.clear();
+    }
 
     inline bool isAlive() const { return _alive; }
 
@@ -59,6 +65,10 @@ private:
 
     std::deque<std::string> _answers;
     std::size_t _off_set;
+
+    std::mutex _mutex;
+
+    void CleanOnClose();
 };
 
 } // namespace MTnonblock
