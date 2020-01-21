@@ -20,7 +20,6 @@ void Engine::Store(context &ctx) {
         buf = new char[size];
     }
     memcpy(buf, ctx.Low, cur_size);
-    // ctx.Stack = std::make_tuple(buf, cur_size);
 }
 
 void Engine::Restore(context &ctx) {
