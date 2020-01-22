@@ -22,9 +22,7 @@ namespace MTnonblock {
 
 // See Worker.h
 Worker::Worker(std::shared_ptr<Afina::Storage> ps, std::shared_ptr<Afina::Logging::Service> pl)
-    : _pStorage(ps), _pLogging(pl), isRunning(false), _epoll_fd(-1) {
-    // TODO: implementation here
-}
+    : _pStorage(ps), _pLogging(pl), isRunning(false), _epoll_fd(-1) {}
 
 // See Worker.h
 Worker::~Worker() {
@@ -61,8 +59,9 @@ void Worker::Stop() { isRunning = false; }
 
 // See Worker.h
 void Worker::Join() {
-    assert(_thread.joinable());
-    _thread.join();
+    if (_thread.joinable()) {
+        _thread.join();
+    }
 }
 
 // See Worker.h
@@ -100,11 +99,13 @@ void Worker::OnRun() {
                 pconn->OnClose();
             } else {
                 // Depends on what connection wants...
-                if (current_event.events & EPOLLIN) {
+                // if (current_event.events & EPOLLIN) {
+                if (pconn->_event.events & EPOLLIN) {
                     _logger->trace("Got EPOLLIN");
                     pconn->DoRead();
                 }
-                if (current_event.events & EPOLLOUT) {
+                // if (current_event.events & EPOLLOUT) {
+                if (pconn->_event.events & EPOLLOUT) {
                     _logger->trace("Got EPOLLOUT");
                     pconn->DoWrite();
                 }
@@ -112,11 +113,12 @@ void Worker::OnRun() {
 
             // Rearm connection
             if (pconn->isAlive()) {
-                pconn->_event.events |= EPOLLONESHOT;
+                pconn->_event.events |= EPOLLONESHOT | EPOLLET;
                 int epoll_ctl_retval;
                 if ((epoll_ctl_retval = epoll_ctl(_epoll_fd, EPOLL_CTL_MOD, pconn->_socket, &pconn->_event))) {
                     _logger->debug("epoll_ctl failed during connection rearm: error {}", epoll_ctl_retval);
                     pconn->OnError();
+                    close(pconn->_socket);
                     delete pconn;
                 }
             }
@@ -125,6 +127,8 @@ void Worker::OnRun() {
                 if (epoll_ctl(_epoll_fd, EPOLL_CTL_DEL, pconn->_socket, &pconn->_event)) {
                     std::cerr << "Failed to delete connection!" << std::endl;
                 }
+                pconn->OnClose();
+                close(pconn->_socket);
                 delete pconn;
             }
         }

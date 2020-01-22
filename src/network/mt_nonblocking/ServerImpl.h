@@ -1,10 +1,11 @@
 #ifndef AFINA_NETWORK_MT_NONBLOCKING_SERVER_H
 #define AFINA_NETWORK_MT_NONBLOCKING_SERVER_H
 
+#include <afina/network/Server.h>
+#include <mutex>
+#include <condition_variable>
 #include <thread>
 #include <vector>
-
-#include <afina/network/Server.h>
 
 namespace spdlog {
 class logger;
@@ -63,6 +64,14 @@ private:
 
     // threads serving read/write requests
     std::vector<Worker> _workers;
+
+    std::mutex _mutex;
+
+    std::condition_variable _cv_join;
+
+    uint32_t _cur_acceptors;
+
+    uint32_t _stopped_workers;
 };
 
 } // namespace MTnonblock
