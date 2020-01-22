@@ -33,7 +33,10 @@ public:
         _answers.clear();
     }
 
-    inline bool isAlive() const { return _alive; }
+    inline bool isAlive() const {
+        std::unique_lock<std::mutex> locker(_mutex);
+        return _alive;
+    }
 
     void Start();
 
@@ -47,7 +50,7 @@ private:
     friend class Worker;
     friend class ServerImpl;
 
-    static constexpr int ERR = EPOLLRDHUP | EPOLLERR | EPOLLHUP | EPOLLET;
+    static constexpr uint32_t ERR = EPOLLRDHUP | EPOLLERR | EPOLLHUP | EPOLLET;
 
     int _socket;
     struct epoll_event _event;
@@ -66,9 +69,9 @@ private:
     std::deque<std::string> _answers;
     std::size_t _off_set;
 
-    std::mutex _mutex;
+    mutable std::mutex _mutex;
 
-    void CleanOnClose();
+    // void CleanOnClose();
 };
 
 } // namespace MTnonblock

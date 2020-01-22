@@ -28,7 +28,10 @@ void Connection::OnError() {
         std::unique_lock<std::mutex> locker(_mutex);
         _alive = false;
         // shutdown(_socket, SHUT_RDWR);
-        CleanOnClose();
+        // CleanOnClose();
+        _command_to_execute.reset();
+        _argument_for_command.resize(0);
+        _parser.Reset();
         _answers.clear();
     }
 }
@@ -37,7 +40,10 @@ void Connection::OnError() {
 void Connection::OnClose() {
     {
         std::unique_lock<std::mutex> locker(_mutex);
-        CleanOnClose();
+        // CleanOnClose();
+        _command_to_execute.reset();
+        _argument_for_command.resize(0);
+        _parser.Reset();
         if (!_answers.empty()) {
             _event.events = EPOLLOUT | ERR;
             // shutdown(_socket, SHUT_RD);
@@ -48,11 +54,11 @@ void Connection::OnClose() {
     }
 }
 
-void Connection::CleanOnClose() {
-    _command_to_execute.reset();
-    _argument_for_command.resize(0);
-    _parser.Reset();
-}
+// void Connection::CleanOnClose() {
+//     _command_to_execute.reset();
+//     _argument_for_command.resize(0);
+//     _parser.Reset();
+// }
 
 // See Connection.h
 void Connection::DoRead() {
@@ -118,7 +124,7 @@ void Connection::DoRead() {
                         // if (_answers.empty()) {
                         //     got_smth_to_write = true;
                         // }
-                        has_smth_to_write = has_smth_to_write || !_answers.empty();
+                        has_smth_to_write = has_smth_to_write || _answers.empty();
                         _answers.push_back(result);
 
                         // Prepare for the next command
@@ -132,7 +138,10 @@ void Connection::DoRead() {
             if ((!_alive) || (_readed_bytes == 0)) {
                 // _logger->debug("Connection closed");
                 _alive = false;
-                CleanOnClose();
+                // CleanOnClose();
+                _command_to_execute.reset();
+                _argument_for_command.resize(0);
+                _parser.Reset();
             }
             // else {
             //     throw std::runtime_error(std::string(strerror(errno)));
@@ -149,7 +158,10 @@ void Connection::DoRead() {
             has_smth_to_write = has_smth_to_write || !_answers.empty();
             _answers.push_back(msg);
             _alive = false;
-            CleanOnClose();
+            // CleanOnClose();
+            _command_to_execute.reset();
+            _argument_for_command.resize(0);
+            _parser.Reset();
         }
 
         if (!_answers.empty()) {
@@ -194,7 +206,10 @@ void Connection::DoWrite() {
             _event.events = EPOLLIN | ERR;
         } else if (_answers.empty() && _need_to_close) {
             _alive = false;
-            CleanOnClose();
+            // CleanOnClose();
+            _command_to_execute.reset();
+            _argument_for_command.resize(0);
+            _parser.Reset();
         }
     }
 }
